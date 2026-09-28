@@ -1,0 +1,83 @@
+name: Build desktop releases
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: windows-x64
+            runner: windows-latest
+          - platform: macos-x64
+            runner: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile and package app image
+        shell: bash
+        run: |
+          mkdir -p build/classes build/input build/package
+          javac --release 21 -d build/classes src/daylist/DaylistApp.java
+          jar --create --file build/input/Daylist.jar \
+            --main-class daylist.DaylistApp -C build/classes .
+          jpackage \
+            --type app-image \
+            --name Daylist \
+            --app-version 1.0.0 \
+            --vendor Daylist \
+            --input build/input \
+            --main-jar Daylist.jar \
+            --main-class daylist.DaylistApp \
+            --dest build/package
+
+      - name: Archive Linux or macOS app
+        if: runner.os != 'Windows'
+        shell: bash
+        run: zip -qr "../Daylist-${{ matrix.platform }}.zip" Daylist
+        working-directory: build/package
+
+      - name: Archive Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path build/package/Daylist -DestinationPath build/Daylist-${{ matrix.platform }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Daylist-${{ matrix.platform }}
+          path: build/Daylist-${{ matrix.platform }}.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Daylist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --verify-tag --generate-notes
