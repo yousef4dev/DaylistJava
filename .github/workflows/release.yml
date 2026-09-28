@@ -35,6 +35,10 @@ jobs:
       - name: Compile and package app image
         shell: bash
         run: |
+          APP_VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$APP_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            APP_VERSION=1.0.0
+          fi
           mkdir -p build/classes build/input build/package
           javac --release 21 -d build/classes src/daylist/DaylistApp.java
           jar --create --file build/input/Daylist.jar \
@@ -42,17 +46,23 @@ jobs:
           jpackage \
             --type app-image \
             --name Daylist \
-            --app-version 1.0.0 \
+            --app-version "$APP_VERSION" \
             --vendor Daylist \
             --input build/input \
             --main-jar Daylist.jar \
             --main-class daylist.DaylistApp \
             --dest build/package
 
-      - name: Archive Linux or macOS app
-        if: runner.os != 'Windows'
+      - name: Archive Linux app
+        if: runner.os == 'Linux'
         shell: bash
         run: zip -qr "../Daylist-${{ matrix.platform }}.zip" Daylist
+        working-directory: build/package
+
+      - name: Archive macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: zip -qr "../Daylist-${{ matrix.platform }}.zip" Daylist.app
         working-directory: build/package
 
       - name: Archive Windows app
