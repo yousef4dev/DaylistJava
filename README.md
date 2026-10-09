@@ -18,7 +18,8 @@ Recipients should download the zip matching their operating system, extract it, 
 
 ## Features
 
-- Inbox, Today, Upcoming, Schedule, Calendar, Completed, and project views
+- Inbox, Today, Upcoming, Schedule, Planner, Calendar, Completed, and project views
+- Spreadsheet-style Planner with inline editing across all tasks
 - Monthly calendar with selectable dates and a chronological due-date schedule
 - Task projects, priority, due dates, notes, search, and sorting
 - Persistent local task data

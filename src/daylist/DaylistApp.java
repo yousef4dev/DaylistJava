@@ -4,6 +4,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -13,6 +14,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
@@ -26,6 +28,7 @@ import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.border.MatteBorder;
+import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -93,6 +96,8 @@ public final class DaylistApp {
     private final JPanel calendarGrid = new JPanel(new GridLayout(0, 7, 4, 4));
     private final JPanel calendarTasks = new JPanel();
     private final JPanel scheduleList = new JPanel();
+    private final PlannerTableModel plannerTableModel = new PlannerTableModel();
+    private final JTable plannerTable = new JTable(plannerTableModel);
     private final JPanel taskListControls = new JPanel();
     private final JLabel viewHeading = new JLabel("Inbox");
     private final JLabel calendarMonthLabel = new JLabel();
@@ -201,6 +206,7 @@ public final class DaylistApp {
         addNavButton(sidebar, "Today", "Today");
         addNavButton(sidebar, "Upcoming", "Upcoming");
         addNavButton(sidebar, "Schedule", "Schedule");
+        addNavButton(sidebar, "Planner", "Planner");
         addNavButton(sidebar, "Calendar", "Calendar");
         addNavButton(sidebar, "Inbox", "Inbox");
         addNavButton(sidebar, "Completed", "Completed");
@@ -320,6 +326,7 @@ public final class DaylistApp {
         viewCards.add(taskScroll, "tasks");
         viewCards.add(buildCalendarView(), "calendar");
         viewCards.add(buildScheduleView(), "schedule");
+        viewCards.add(buildPlannerView(), "planner");
 
         JPanel footer = new JPanel(new BorderLayout());
         footer.setOpaque(false);
@@ -484,6 +491,42 @@ public final class DaylistApp {
         return schedule;
     }
 
+    private JPanel buildPlannerView() {
+        JPanel planner = new JPanel(new BorderLayout(0, 10));
+        planner.setBackground(WHITE);
+
+        JLabel heading = new JLabel("ALL TASKS");
+        heading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        heading.setForeground(INK);
+
+        plannerTable.setFillsViewportHeight(true);
+        plannerTable.setRowHeight(32);
+        plannerTable.setGridColor(LINE);
+        plannerTable.setShowGrid(true);
+        plannerTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        plannerTable.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
+        plannerTable.getTableHeader().setReorderingAllowed(false);
+        plannerTable.getTableHeader().setBackground(new Color(249, 250, 245));
+        plannerTable.getTableHeader().setForeground(INK);
+        plannerTable.getColumnModel().getColumn(0).setPreferredWidth(105);
+        plannerTable.getColumnModel().getColumn(1).setPreferredWidth(185);
+        plannerTable.getColumnModel().getColumn(2).setPreferredWidth(105);
+        plannerTable.getColumnModel().getColumn(3).setPreferredWidth(105);
+        plannerTable.getColumnModel().getColumn(4).setPreferredWidth(65);
+        plannerTable.getColumnModel().getColumn(5).setPreferredWidth(165);
+        plannerTable.getColumnModel().getColumn(2).setCellEditor(
+                new DefaultCellEditor(new JComboBox<>(PROJECTS.toArray(String[]::new))));
+        plannerTable.getColumnModel().getColumn(3).setCellEditor(
+                new DefaultCellEditor(new JComboBox<>(new String[]{"No priority", "High", "Medium", "Low"})));
+
+        JScrollPane scroll = new JScrollPane(plannerTable);
+        scroll.setBorder(BorderFactory.createLineBorder(LINE));
+        scroll.getViewport().setBackground(WHITE);
+        planner.add(heading, BorderLayout.NORTH);
+        planner.add(scroll, BorderLayout.CENTER);
+        return planner;
+    }
+
     private void changeCalendarMonth(int amount) {
         calendarMonth = calendarMonth.plusMonths(amount);
         selectedCalendarDate = calendarMonth;
@@ -631,7 +674,8 @@ public final class DaylistApp {
             return;
         }
         updateViewHeading();
-        boolean listView = !"Calendar".equals(activeView) && !"Schedule".equals(activeView);
+        boolean listView = !"Calendar".equals(activeView) && !"Schedule".equals(activeView)
+            && !"Planner".equals(activeView);
         taskListControls.setVisible(listView);
         taskList.removeAll();
         List<Task> visible = filteredTasks();
@@ -642,7 +686,13 @@ public final class DaylistApp {
         clearCompletedButton.setVisible(tasks.stream().anyMatch(task -> task.done && matchesView(task)));
         renderCalendar();
         renderSchedule();
-        String card = "Calendar".equals(activeView) ? "calendar" : "Schedule".equals(activeView) ? "schedule" : "tasks";
+        plannerTableModel.fireTableDataChanged();
+        String card = switch (activeView) {
+            case "Calendar" -> "calendar";
+            case "Schedule" -> "schedule";
+            case "Planner" -> "planner";
+            default -> "tasks";
+        };
         ((java.awt.CardLayout) viewCards.getLayout()).show(viewCards, card);
         updateProgress();
         taskList.revalidate();
@@ -815,6 +865,7 @@ public final class DaylistApp {
             case "Today" -> task.due != null && !task.due.isAfter(today);
             case "Upcoming" -> task.due != null && task.due.isAfter(today);
             case "Schedule" -> task.due != null && (!task.done || !task.due.isBefore(today));
+            case "Planner" -> true;
             case "Calendar" -> task.due != null && task.due.getYear() == calendarMonth.getYear()
                     && task.due.getMonth() == calendarMonth.getMonth();
             case "Completed" -> task.done;
@@ -828,6 +879,7 @@ public final class DaylistApp {
             case "Today" -> "A thoughtful day starts here.";
             case "Upcoming" -> "Keep an eye on what’s next.";
             case "Schedule" -> "Everything, in its own time.";
+            case "Planner" -> "Plan everything in one place.";
             case "Calendar" -> "See your days take shape.";
             case "Completed" -> "Look how far you’ve come.";
             case "Inbox" -> "Make room for what matters.";
@@ -1269,6 +1321,102 @@ public final class DaylistApp {
         button.setBorder(new EmptyBorder(5, 7, 5, 7));
         button.setContentAreaFilled(false);
         return button;
+    }
+
+    private final class PlannerTableModel extends AbstractTableModel {
+        private final String[] columns = {"Due date", "Task", "Project", "Priority", "Done", "Notes"};
+
+        @Override
+        public int getRowCount() {
+            return tasks.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int column) {
+            return column == 4 ? Boolean.class : String.class;
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            Task task = sortedTasks().get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> task.due == null ? "" : task.due.toString();
+                case 1 -> task.text;
+                case 2 -> task.project;
+                case 3 -> displayPriority(task.priority);
+                case 4 -> task.done;
+                case 5 -> task.notes;
+                default -> throw new IndexOutOfBoundsException("Unknown planner column");
+            };
+        }
+
+        @Override
+        public boolean isCellEditable(int rowIndex, int columnIndex) {
+            return true;
+        }
+
+        @Override
+        public void setValueAt(Object value, int rowIndex, int columnIndex) {
+            Task task = sortedTasks().get(rowIndex);
+            String text = value == null ? "" : value.toString().trim();
+            switch (columnIndex) {
+                case 0 -> {
+                    LocalDate due = parseDueDate(text);
+                    if (!text.isEmpty() && due == null) {
+                        JOptionPane.showMessageDialog(frame, "Enter a due date as YYYY-MM-DD or leave it blank.",
+                                "Check the due date", JOptionPane.WARNING_MESSAGE);
+                        fireTableCellUpdated(rowIndex, columnIndex);
+                        return;
+                    }
+                    task.due = due;
+                }
+                case 1 -> {
+                    if (text.isEmpty()) {
+                        JOptionPane.showMessageDialog(frame, "Task text can’t be empty.",
+                                "Check the task", JOptionPane.WARNING_MESSAGE);
+                        fireTableCellUpdated(rowIndex, columnIndex);
+                        return;
+                    }
+                    task.text = text;
+                }
+                case 2 -> {
+                    if (!PROJECTS.contains(text)) return;
+                    task.project = text;
+                }
+                case 3 -> {
+                    if (!List.of("No priority", "High", "Medium", "Low").contains(text)) return;
+                    task.priority = normalizePriority(text);
+                }
+                case 4 -> {
+                    task.done = Boolean.TRUE.equals(value);
+                    task.completedAt = task.done ? LocalDate.now() : null;
+                }
+                case 5 -> task.notes = value == null ? "" : value.toString();
+                default -> throw new IndexOutOfBoundsException("Unknown planner column");
+            }
+            saveTasks();
+            fireTableDataChanged();
+            updateProgress();
+            SwingUtilities.invokeLater(DaylistApp.this::render);
+        }
+
+        private List<Task> sortedTasks() {
+            Comparator<Task> comparator = Comparator.comparing(
+                    (Task task) -> task.due,
+                    Comparator.nullsLast(Comparator.<LocalDate>naturalOrder()))
+                    .thenComparing(task -> task.text.toLowerCase(Locale.ROOT));
+            return tasks.stream().sorted(comparator).toList();
+        }
     }
 
     private static final class Task {
